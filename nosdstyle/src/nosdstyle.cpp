@@ -66,7 +66,6 @@ void NOSDStyle::polish(QPalette &palette)
 void NOSDStyle::drawControl(ControlElement element, const QStyleOption *option, 
                             QPainter *painter, const QWidget *widget) const 
 {
-    qDebug( ) << "NOSDStyle::drawControl" << element << option << painter << widget;
     switch (element)
     {
     case CE_PushButtonLabel:
@@ -131,7 +130,6 @@ void NOSDStyle::drawControl(ControlElement element, const QStyleOption *option,
 void NOSDStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
                               QPainter *painter, const QWidget *widget) const
 {
-    qDebug( ) << "NOSDStyle::drawControl" << element << option << painter << widget;
     switch (element)
     {
     case PE_PanelButtonCommand:
@@ -185,6 +183,70 @@ void NOSDStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *opti
             return;
         }
         break;
+    case PE_IndicatorArrowUp:
+    case PE_IndicatorArrowDown:
+    case PE_IndicatorArrowLeft:
+    case PE_IndicatorArrowRight:
+        {
+            int x = option->rect.x();
+            int y = option->rect.y();
+            int w = option->rect.width();
+            int h = option->rect.height();
+            QPolygon points;
+
+            if (option->type == QStyleOption::SO_Slider)
+            {
+                switch (element)
+                {
+                case PE_IndicatorArrowUp:
+                    points.setPoints(6, x, y + h - 2, x + w/2, y, x + w, y + h - 2,
+                                     x + w, y + h, x + w/2, y + 2, x, y + h);
+                    break;
+                case PE_IndicatorArrowDown:
+                    points.setPoints(6, x, y, x, y + 2, x + w/2, y + h,
+                                     x + w, y + 2, x + w, y, x + w/2, y + h - 2);
+                    break;
+                case PE_IndicatorArrowLeft:
+                    points.setPoints(6, x + w - 2, y, x, y + h/2, x + w - 2, y + h,
+                                     x + w, y + h, x + 2, y + h/2, x + w, y);
+                    break;
+                case PE_IndicatorArrowRight:
+                    points.setPoints(6, x, y, x + w - 2, y + h/2, x, y + h,
+                                     x + 2, y + h, x + w, y + h/2, x + 2, y);
+                    break;
+                default:
+                    break;
+                }
+            }
+            else
+            {
+                switch (element)
+                {
+                case PE_IndicatorArrowUp:
+                    points.setPoints(3, x, y + h, x + w, y + h, x + w/2, y);
+                    break;
+                case PE_IndicatorArrowDown:
+                    points.setPoints(3, x, y, x + w, y, x + w/2, y + h);
+                    break;
+                case PE_IndicatorArrowLeft:
+                    points.setPoints(3, x, y + h/2, x + w, y, x + w, y + h);
+                    break;
+                case PE_IndicatorArrowRight:
+                    points.setPoints(3, x, y, x + w, y + h/2, x, y + h);
+                    break;
+                default:
+                    break;
+                }
+            }
+
+            painter->save();
+            painter->setPen(option->palette.buttonText().color());
+            painter->setBrush(option->palette.buttonText());
+            painter->drawPolygon(points);
+            painter->restore();
+            return;
+        }
+        break;
     default:
         break;
     }
@@ -204,10 +266,71 @@ int NOSDStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const
     }
 }
 
+/*
+ * Returns the size of the element described by the specified option and type,
+ * based on the provided contentsSize.
+ */
+QSize NOSDStyle::sizeFromContents(ContentsType ct, const QStyleOption *opt,
+                                  const QSize &csz, const QWidget *widget) const
+{
+    switch (ct)
+    {
+    case CT_ComboBox:
+        if (widget->metaObject()->className() != QString("NHorizontalComboBox"))
+            break;
+        return QWindowsStyle::sizeFromContents(ct, opt, csz, widget) + QSize(1, 0);
+    default:
+        break;
+    }
 
+    return QWindowsStyle::sizeFromContents(ct, opt, csz, widget);
+}
 
+/*
+ * Returns the rectangle containing the specified subControl of the given complex control (with the style specified by option).
+ * The rectangle is defined in screen coordinates.
+ */
+QRect  NOSDStyle::subControlRect(ComplexControl control, const QStyleOptionComplex *option,
+                                 SubControl subControl, const QWidget *widget) const
+{
+    switch (control)
+    {
+    case CC_ComboBox:
+        if (widget->metaObject()->className() != QString("NHorizontalComboBox"))
+            break;
+        if (const QStyleOptionComboBox *cb = qstyleoption_cast<const QStyleOptionComboBox *>(option))
+        {
+            QRect ret;
+            int fw = cb->frame ? pixelMetric(PM_ComboBoxFrameWidth, option, widget) : 0;
+            int hs = pixelMetric(PM_LayoutHorizontalSpacing, option, widget);
+            int ah = qMin(QFontMetrics(widget->font()).height(), cb->rect.height());
+            int aw = qMin(ah*2/5, cb->rect.width()/2);
 
+            switch (subControl)
+            {
+            case SC_ComboBoxFrame:
+            case SC_ComboBoxListBoxPopup:
+                ret = cb->rect;
+                break;
+            case SC_ComboBoxArrow:
+                ret.setRect(cb->rect.x() + fw, cb->rect.y() + (cb->rect.height() - ah)/2, aw, ah);
+                break;
+            case SC_ComboBoxEditField:
+                ret.setRect(cb->rect.x() + fw + hs + aw, cb->rect.y() + fw,
+                            cb->rect.width() - 2*fw - 2*hs - 2*aw, cb->rect.height() - 2*fw);
+                break;
+            default:
+                break;
+            }
+            ret = visualRect(cb->direction, cb->rect, ret);
+            return ret;
+        }
+    default:
+        break;
+    }
 
+    return QWindowsStyle::subControlRect(control, option, subControl, widget);
+}
 
 /*
  * Draws a slope panel in the given rectangle of painter using the lighter, darker and direction.

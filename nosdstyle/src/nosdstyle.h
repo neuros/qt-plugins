@@ -54,6 +54,9 @@ public:
     virtual void drawControl(ControlElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget = NULL) const;
     virtual void drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget = NULL) const;
     virtual int pixelMetric(PixelMetric metric, const QStyleOption *option = NULL, const QWidget *widget = NULL) const;
+    virtual QSize sizeFromContents(ContentsType ct, const QStyleOption *opt, const QSize &csz, const QWidget *widget = NULL) const;
+    virtual QRect subControlRect(ComplexControl control, const QStyleOptionComplex *option, SubControl subControl, const QWidget *widget = NULL) const;
+
 private:
     QPainterPath roundRectPath(const QRect &rect) const;
     void drawSlopePanel(QPainter *p, const QRect &r, const QColor &lighter, const QColor &darker, int direction) const;
