@@ -193,9 +193,10 @@ void NOSDStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *opti
             int w = option->rect.width();
             int h = option->rect.height();
             QPolygon points;
-
-            if (option->type == QStyleOption::SO_Slider)
+            switch (option->type)
             {
+            case QStyleOption::SO_Slider:
+            case QStyleOption::SO_MenuItem:
                 switch (element)
                 {
                 case PE_IndicatorArrowUp:
@@ -217,9 +218,8 @@ void NOSDStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *opti
                 default:
                     break;
                 }
-            }
-            else
-            {
+                break;
+            default:
                 switch (element)
                 {
                 case PE_IndicatorArrowUp:
@@ -260,7 +260,12 @@ int NOSDStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const
     {
     case PM_ProgressBarChunkWidth:
         return 5;
-        break;
+    case QStyle::PM_MenuHMargin:
+        if (widget->metaObject()->className() == QString("NXim"))
+            return 10;
+    case QStyle::PM_MenuVMargin:
+        if (widget->metaObject()->className() == QString("NXim"))
+            return 0;
     default:
         return QWindowsStyle::pixelMetric(metric, option, widget);
     }
@@ -273,17 +278,27 @@ int NOSDStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const
 QSize NOSDStyle::sizeFromContents(ContentsType ct, const QStyleOption *opt,
                                   const QSize &csz, const QWidget *widget) const
 {
+    QSize sz(csz);
     switch (ct)
     {
     case CT_ComboBox:
         if (widget->metaObject()->className() != QString("NHorizontalComboBox"))
             break;
-        return QWindowsStyle::sizeFromContents(ct, opt, csz, widget) + QSize(1, 0);
+        sz = QWindowsStyle::sizeFromContents(ct, opt, csz, widget) + QSize(1, 0);
+        return sz;
+    case CT_MenuItem:
+        if (widget->metaObject()->className() != QString("NXim"))
+            break;
+        sz = QWindowsStyle::sizeFromContents(ct, opt, csz, widget);
+        if (sz.height( ) < 30)
+            sz.setHeight(30);
+        return sz;
     default:
         break;
     }
 
-    return QWindowsStyle::sizeFromContents(ct, opt, csz, widget);
+    sz = QWindowsStyle::sizeFromContents(ct, opt, csz, widget);
+    return sz;
 }
 
 /*
