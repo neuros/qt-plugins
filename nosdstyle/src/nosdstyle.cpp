@@ -32,9 +32,8 @@
 
 //#define QT_NO_DEBUG_OUTPUT
 #include <QDebug>
+#include <QProgressBar>
 #include "nosdstyle.h"
-#include "npushbutton.h"
-#include "ncapacitybar.h"
 
 /*
  * Initializes the appearance of the given widget.
@@ -82,37 +81,72 @@ void NOSDStyle::drawControl(ControlElement element, const QStyleOption *option,
         break;
     case CE_ProgressBarGroove:
         {
+            if (widget->metaObject()->className() != QString("NProgressBar"))
+                break;
             const QProgressBar *bar = qobject_cast<const QProgressBar *>(widget);
             if (NULL != bar)
             {
-                painter->save( );
+                painter->save();
                 drawSlopePanel(painter, option->rect,
-                               option->palette.color(QPalette::Window).lighter( ), 
-                               option->palette.color(QPalette::Window).darker( ), 
-                               bar->orientation( ) == Qt::Horizontal ? 2 : 0);
-                drawRoundRect(painter, option->rect, 5, 
-                              option->palette.color(QPalette::Highlight));
-                painter->restore( );
+                               option->palette.color(QPalette::Window).lighter(), 
+                               option->palette.color(QPalette::Window).darker(), 
+                               bar->orientation() == Qt::Horizontal ? 2 : 0, true);
+                drawRect(painter, option->rect, 5, option->palette.color(QPalette::Highlight).darker(150), true);
+                painter->restore();
                 return;
             }
         }
         break;
-    case CE_ProgressBarLabel:
-        {
-
-        }
-        break;
     case CE_ProgressBarContents:
         {
-            const QProgressBar *bar = qobject_cast<const QProgressBar *>(widget);
-            if (NULL != bar)
+            if (widget->metaObject()->className() != QString("NProgressBar"))
+                break;
+
+            if (const QStyleOptionProgressBar *pb = qstyleoption_cast<const QStyleOptionProgressBar *>(option))
             {
-                painter->save( );
-                drawSlopePanel(painter, option->rect,
-                               option->palette.color(QPalette::Highlight).lighter(120), 
-                               option->palette.color(QPalette::Highlight).darker(120), 
-                               bar->orientation( ) == Qt::Horizontal ? 2 : 0);
-                painter->restore( );
+                QRect rect = pb->rect;
+                bool vertical = false;
+                bool inverted = false;
+                qint64 minimum = qint64(pb->minimum);
+                qint64 maximum = qint64(pb->maximum);
+                qint64 progress = qint64(pb->progress);
+
+                if (minimum == 0 && maximum == 0)
+                    return; // nothing to paint
+
+                if (const QStyleOptionProgressBarV2 *pb2 = qstyleoption_cast<const QStyleOptionProgressBarV2 *>(option))
+                {
+                    vertical = (pb2->orientation == Qt::Vertical);
+                    inverted = pb2->invertedAppearance;
+                }
+
+                bool reverse = ((!vertical && (pb->direction == Qt::RightToLeft)) || vertical);
+                if (inverted)
+                    reverse = !reverse;
+
+                int percent = int(((qreal(progress) - qreal(minimum))*100.0) / (maximum - minimum));
+
+                QRect lighterRect;
+                QRect darkerRect;
+                if (!vertical)
+                {
+                    int w = rect.width()*percent/100;
+                    lighterRect =QRect(reverse ? rect.right() - w: rect.x(), rect.y(), w, rect.height()/2);
+                    darkerRect =QRect(reverse ? rect.right() - w: rect.x(), rect.y() + rect.height()/2, w, rect.height()/2);
+                }
+                else
+                {
+                    int h = rect.height()*percent/100;
+                    lighterRect =QRect(rect.x(), reverse ? rect.bottom() - h : rect.y(), rect.width()/2, h);
+                    darkerRect =QRect(rect.x() + rect.width()/2, reverse ? rect.bottom() - h : rect.y(), rect.width()/2, h);
+                }
+
+                QPainterPath path = roundRectPath(pb->rect.adjusted(2, 3, -2, -2));
+                QPainterPath lighterPath, darkerPath;
+                lighterPath.addRect(lighterRect);
+                darkerPath.addRect(darkerRect);
+                painter->fillPath(path.intersected(lighterPath), pb->palette.color(QPalette::Highlight).darker(200));
+                painter->fillPath(path.intersected(darkerPath), pb->palette.color(QPalette::Highlight).darker(250));
                 return;
             }
         }
@@ -171,17 +205,6 @@ void NOSDStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *opti
     case PE_FrameFocusRect:
         if (NULL != qobject_cast<const QPushButton*>(widget))
             return;
-        break;
-    case PE_IndicatorProgressChunk:
-        {
-            bool vertical = false;
-            if (const QStyleOptionProgressBarV2 *pb2 = qstyleoption_cast<const QStyleOptionProgressBarV2 *>(option))
-                vertical = (pb2->orientation == Qt::Vertical);
-            painter->save( );
-            drawSlopePanel(painter, option->rect, option->palette.color(QPalette::Highlight).lighter( ), option->palette.color(QPalette::Highlight).darker( ), vertical ? 0 : 2);
-            painter->restore( );
-            return;
-        }
         break;
     case PE_IndicatorArrowUp:
     case PE_IndicatorArrowDown:
@@ -284,7 +307,7 @@ QSize NOSDStyle::sizeFromContents(ContentsType ct, const QStyleOption *opt,
     case CT_ComboBox:
         if (widget->metaObject()->className() != QString("NHorizontalComboBox"))
             break;
-        sz = QWindowsStyle::sizeFromContents(ct, opt, csz, widget) + QSize(1, 0);
+        sz = QWindowsStyle::sizeFromContents(ct, opt, csz, widget) + QSize(2*pixelMetric(PM_LayoutHorizontalSpacing, opt, widget), 0);
         return sz;
     case CT_MenuItem:
         if (widget->metaObject()->className() != QString("NXim"))
@@ -299,6 +322,43 @@ QSize NOSDStyle::sizeFromContents(ContentsType ct, const QStyleOption *opt,
 
     sz = QWindowsStyle::sizeFromContents(ct, opt, csz, widget);
     return sz;
+}
+
+/*
+ * Returns the sub-area for the given element as described in the provided style option.
+ * The returned rectangle is defined in screen coordinates.
+ */
+QRect NOSDStyle::subElementRect(SubElement sr, const QStyleOption *opt,
+                                const QWidget *widget) const
+{
+    QRect r;
+    switch (sr)
+    {
+    case SE_ProgressBarGroove:
+    case SE_ProgressBarContents:
+    case SE_ProgressBarLabel:
+        if (widget->metaObject()->className() != QString("NProgressBar"))
+            break;
+
+        if (const QStyleOptionProgressBar *pb = qstyleoption_cast<const QStyleOptionProgressBar *>(opt))
+        {
+            if ((sr == SE_ProgressBarGroove) || (sr == SE_ProgressBarContents))
+                r = pb->rect;
+            else
+                r = itemTextRect(pb->fontMetrics,
+                                 pb->rect.adjusted(pb->fontMetrics.height(), pb->fontMetrics.height(),
+                                                   -pb->fontMetrics.height(), -pb->fontMetrics.height()),
+                                 pb->textAlignment, false, pb->text);
+
+            r = visualRect(pb->direction, pb->rect, r);
+            return r;
+        }
+        break;
+    default:
+        break;
+    }
+
+    return QWindowsStyle::subElementRect(sr, opt, widget);
 }
 
 /*
@@ -350,44 +410,63 @@ QRect  NOSDStyle::subControlRect(ComplexControl control, const QStyleOptionCompl
 /*
  * Draws a slope panel in the given rectangle of painter using the lighter, darker and direction.
  * direction: 0 LeftToRight, 1 RightToLeft, 2 TopToBottom,3 BottomToTop
+ * round: draw round rectangle if true
  */
 void NOSDStyle::drawSlopePanel(QPainter *p, const QRect &r, const QColor &lighter, 
-                               const QColor &darker, int direction) const
+                               const QColor &darker, int direction, bool round) const
 {
     QRect lighterRect;
     QRect darkerRect;
     switch (direction)
     {
     case 0: // LeftToRight
-        lighterRect = r.adjusted(0, 0, - r.width( ) / 2, 0);
-        darkerRect = r.adjusted(r.width( ) / 2, 0, 0, 0);
+        lighterRect = r.adjusted(0, 0, - r.width()/2, 0);
+        darkerRect = r.adjusted(r.width()/2, 0, 0, 0);
         break;
     case 1: // RightToLeft
-        lighterRect = r.adjusted(r.width( ) / 2, 0, 0, 0);
-        darkerRect = r.adjusted(0, 0, - r.width( ) / 2, 0);
+        lighterRect = r.adjusted(r.width()/2, 0, 0, 0);
+        darkerRect = r.adjusted(0, 0, - r.width()/2, 0);
         break;
     case 2: // TopToBottom
-        lighterRect = r.adjusted(0, 0, 0, - r.height( ) / 2);
-        darkerRect = r.adjusted(0, r.height( ) / 2, 0, 0);
+        lighterRect = r.adjusted(0, 0, 0, - r.height()/2);
+        darkerRect = r.adjusted(0, r.height()/2, 0, 0);
         break;
     case 3: // BottomToTop
-        lighterRect = r.adjusted(0, r.height( ) / 2, 0, 0);
-        darkerRect = r.adjusted(0, 0, 0, - r.height( ) / 2);
+        lighterRect = r.adjusted(0, r.height()/2, 0, 0);
+        darkerRect = r.adjusted(0, 0, 0, - r.height()/2);
         break;
     default:
         break;
     }
 
-    p->fillRect(lighterRect, lighter);
-    p->fillRect(darkerRect, darker);
+    if (round)
+    {
+        QPainterPath path = roundRectPath(r);
+        QPainterPath lighterPath, darkerPath;
+        lighterPath.addRect(lighterRect);
+        darkerPath.addRect(darkerRect);
+        p->fillPath(path.intersected(lighterPath), lighter);
+        p->fillPath(path.intersected(darkerPath), darker);
+    }
+    else
+    {
+        p->fillRect(lighterRect, lighter);
+        p->fillRect(darkerRect, darker);
+    }
 }
 
-void NOSDStyle::drawRoundRect(QPainter *p, const QRect &r, int width, const QColor &c) const
+void NOSDStyle::drawRect(QPainter *p, const QRect &r, int width, const QColor &c, bool round) const
 {
     QPen pen(c);
     pen.setWidth(width);
     p->setPen(pen);
-    p->drawRoundRect(r, 10, 25);
+    QPainterPath path;
+    if (round)
+        path.addPath(roundRectPath(r));
+    else
+        path.addRect(r);
+
+    p->drawPath(path);
 }
 
 QPainterPath NOSDStyle::roundRectPath(const QRect &rect) const

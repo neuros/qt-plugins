@@ -46,7 +46,7 @@ class NOSDStyle : public QWindowsStyle
     Q_OBJECT
 
 public:
-    NOSDStyle( ) {}
+    NOSDStyle() {}
 
     virtual void polish(QWidget *widget);
     virtual void polish(QPalette &palette);
@@ -56,11 +56,12 @@ public:
     virtual int pixelMetric(PixelMetric metric, const QStyleOption *option = NULL, const QWidget *widget = NULL) const;
     virtual QSize sizeFromContents(ContentsType ct, const QStyleOption *opt, const QSize &csz, const QWidget *widget = NULL) const;
     virtual QRect subControlRect(ComplexControl control, const QStyleOptionComplex *option, SubControl subControl, const QWidget *widget = NULL) const;
+    virtual QRect subElementRect(SubElement sr, const QStyleOption *opt, const QWidget *widget = NULL) const;
 
 private:
     QPainterPath roundRectPath(const QRect &rect) const;
-    void drawSlopePanel(QPainter *p, const QRect &r, const QColor &lighter, const QColor &darker, int direction) const;
-    void drawRoundRect(QPainter *p, const QRect &r, int width, const QColor &c) const;
+    void drawSlopePanel(QPainter *p, const QRect &r, const QColor &lighter, const QColor &darker, int direction, bool round = false) const;
+    void drawRect(QPainter *p, const QRect &r, int width, const QColor &c, bool round = false) const;
 
 private:
     static const unsigned int buttonDarkening = 120;
